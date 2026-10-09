@@ -1,0 +1,212 @@
+---
+title: "Employee Attrition Analysis"
+author: "Jingwei Zhou"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+
+library(tidyverse)
+```
+
+# Part 1: Factors That Influence Employee Attrition
+
+## 1. Import and Prepare Data
+
+```{r}
+employee <- read_csv(
+  "../data/week13_employee.csv",
+  show_col_types = FALSE
+)
+
+employee <- employee %>%
+  mutate(
+    Attrition = factor(
+      Attrition,
+      levels = c("Yes", "No")
+    )
+  )
+
+glimpse(employee)
+```
+
+## 2. Data Checks
+
+```{r}
+# Number of rows and columns
+dim(employee)
+
+# Missing values
+sum(is.na(employee))
+
+# Duplicated rows
+sum(duplicated(employee))
+
+# Variables with only one unique value
+employee %>%
+  summarise(across(everything(), n_distinct)) %>%
+  pivot_longer(
+    everything(),
+    names_to = "Variable",
+    values_to = "Unique_values"
+  ) %>%
+  filter(Unique_values <= 1)
+```
+
+## 3. Overall Attrition
+
+```{r}
+attrition_summary <- employee %>%
+  count(Attrition) %>%
+  mutate(
+    Percentage = round(n / sum(n) * 100, 2)
+  )
+
+attrition_summary
+```
+
+```{r}
+ggplot(employee, aes(x = Attrition, fill = Attrition)) +
+  geom_bar() +
+  labs(
+    title = "Overall Employee Attrition",
+    x = "Attrition",
+    y = "Number of Employees"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## 4. Department and Attrition
+
+```{r}
+department_result <- employee %>%
+  group_by(Department) %>%
+  summarise(
+    Employees = n(),
+    Attrition_rate = round(
+      mean(Attrition == "Yes") * 100,
+      2
+    ),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Attrition_rate))
+
+department_result
+```
+
+```{r}
+ggplot(employee, aes(x = Department, fill = Attrition)) +
+  geom_bar(position = "fill") +
+  coord_flip() +
+  labs(
+    title = "Attrition by Department",
+    x = "Department",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+## 5. Business Travel and Attrition
+
+```{r}
+travel_result <- employee %>%
+  group_by(BusinessTravel) %>%
+  summarise(
+    Employees = n(),
+    Attrition_rate = round(
+      mean(Attrition == "Yes") * 100,
+      2
+    ),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Attrition_rate))
+
+travel_result
+```
+
+```{r}
+ggplot(employee, aes(x = BusinessTravel, fill = Attrition)) +
+  geom_bar(position = "fill") +
+  coord_flip() +
+  labs(
+    title = "Attrition by Business Travel",
+    x = "Business Travel",
+    y = "Proportion"
+  ) +
+  theme_minimal()
+```
+
+## 6. Age and Years at Company
+
+```{r}
+employee %>%
+  group_by(Attrition) %>%
+  summarise(
+    Mean_age = round(mean(Age), 2),
+    Mean_years_at_company =
+      round(mean(YearsAtCompany), 2)
+  )
+```
+
+```{r}
+employee %>%
+  select(
+    Attrition,
+    Age,
+    YearsAtCompany
+  ) %>%
+  pivot_longer(
+    -Attrition,
+    names_to = "Variable",
+    values_to = "Value"
+  ) %>%
+  ggplot(
+    aes(x = Attrition, y = Value, fill = Attrition)
+  ) +
+  geom_boxplot() +
+  facet_wrap(
+    ~Variable,
+    scales = "free_y"
+  ) +
+  labs(
+    title = "Age and Years at Company by Attrition",
+    x = "Attrition",
+    y = NULL
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## 7. Preliminary Findings
+
+```{r echo=FALSE, results='asis'}
+overall_rate <- round(
+  mean(employee$Attrition == "Yes") * 100,
+  2
+)
+
+top_department <- department_result[1, ]
+top_travel <- travel_result[1, ]
+
+cat(
+  paste0(
+    "- The overall attrition rate was **",
+    overall_rate,
+    "%**.\n\n",
+    "- **",
+    top_department$Department,
+    "** had the highest department attrition rate.\n\n",
+    "- **",
+    top_travel$BusinessTravel,
+    "** had the highest attrition rate among the business travel groups.\n\n",
+    "- Age and years at the company also showed differences between employees who left and employees who stayed.\n\n",
+    "- These results show associations and do not prove causal relationships."
+  )
+)
+```
